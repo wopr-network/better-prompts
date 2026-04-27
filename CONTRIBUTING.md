@@ -1,71 +1,85 @@
 # contributing
 
-Guide for the next builder. Pick this up where the spec leaves off.
+Thanks for taking the time. This is a small library with a deliberately narrow scope; that's the design, not a TODO.
 
-## Scope
+## Local setup
 
-v0 is the substrate. Not a kitchen sink.
+```bash
+git clone https://github.com/wopr-network/better-prompts.git
+cd better-prompts
+pnpm install
+pnpm test          # vitest run
+pnpm typecheck     # tsc --noEmit
+pnpm walkthrough   # examples/walkthrough.ts (uses Claude Agent SDK; needs ~/.claude auth)
+```
 
-- Three typed nouns: `Revision`, `Invocation`, `Signal`. (No `Token` type — bodies are opaque strings to the library.)
-- Public API: `get`, `set`, `record`, `signal`, `evolve`, plus `history`, `rollback`, `invocations`, `signals` as reads.
-- The library does NOT own LLM calls. The only place an LLM enters is the `using` callback consumers pass to `evolve`. Variable substitution is also the consumer's job; `vars` and `metadata` reported via `record` are stored as telemetry, not as a request to template anything. The library never inspects body content.
-- One reference store: `SqliteStore` — SQLite + Drizzle in the IRepository pattern (one repo per table behind a Store facade). `:memory:` for tests, file path for prod, same implementation. No raw SQL.
-- One seeded artifact: `_enhancer`, body lifted byte-for-byte from `reference/toolstac/core/prompt-enhancer-agent.ts:187-372`. Seeded on first `evolve` call via the same `get` path any consumer artifact uses.
-- The library uses itself: every `evolve(key, { reason, using })` records an invocation against `_enhancer` automatically (it's a normal call through the consumer's `using` callback). Self-improvement of `_enhancer` is structural, not a feature flag.
+The admin UI is a separate workspace at `ui/` with its own deps:
 
-That is the whole v0. No CLI, no admin UI, no Postgres adapter, no Redis adapter, no held-out evaluator, no policy abstraction, no signal collector / emitter dichotomy, no traffic-split, no MCP server. Those layer on top later **if a real consumer asks for them.** Don't speculate.
+```bash
+cd ui
+pnpm install
+pnpm dev   # http://localhost:3030
+```
 
-## Build order
+## Repo layout
 
-Each step is shippable. Each step is one PR.
-
-1. **Types + Drizzle schema + SqliteStore.** `src/store/schema.ts` defines the Drizzle schema (revisions, invocations, signals tables). `src/store/repositories.ts` defines `RevisionRepository`, `InvocationRepository`, `SignalRepository` — each takes a Drizzle DB handle and exposes typed queries for its table. `src/store/sqlite.ts` exports `SqliteStore` — composes the three repos and implements the public `Store` contract. Constructor takes a path (`:memory:` for tests, file for prod). Auto-applies schema on first connect. No raw SQL anywhere — every query goes through Drizzle.
-2. **The factory and operations.** `src/index.ts` exports `betterPrompts({ store, telemetryWindow? })` — no provider, no renderer. Implement `get` (with `codeDate` merge), `set` (unconditional manual append), `record` (writes Invocation with `vars` + `metadata` + `output`), `signal` (attaches Signal), `evolve(key, { reason, using })` (renders the `_enhancer` meta-prompt + the consumer's `using` callback runs it + appendRevision). Plus `history`, `rollback`, `invocations`, `signals`. Smoke tests use a stub `LLMCallback` against `:memory:` SqliteStore.
-3. **Seed the meta-prompt.** `src/seeded-prompts/enhancer.md` holds the byte-for-byte lift. The factory seeds `_enhancer` on first `evolve` call by going through `get("_enhancer", DEFAULT_FROM_MARKDOWN, CODE_DATE)` — same code path any consumer artifact uses.
-4. **Reference LLM-callback example.** `examples/claude-agent-provider.ts` demonstrating the one-line plug for the Claude Agent SDK. Not shipped as `src/`. Lives in `examples/` so consumers can copy it. The example wraps the SDK in an `LLMCallback`-shaped function and passes it to both `bp.evolve({..., using})` and the consumer's own LLM calls.
-
-That's v0.
+```
+src/                     # library source
+  index.ts                 # the betterPrompts() factory + the five-verb API
+  store/                   # Store interface + SqliteStore + KVStore
+  agent-api.ts             # LLM seam: HTTP wrapper for coder/agentapi
+  ai-sdk.ts                # LLM seam: Vercel ai SDK wrapper
+  claude-agent.ts          # LLM seam: Claude Agent SDK (~/.claude OAuth)
+  cli.ts / cli-onboard.ts  # bp / better-prompts CLI
+  seeded-prompts/          # _enhancer body, lifted byte-for-byte from toolstac
+tests/                   # vitest suites: substrate smoke, kv-store, agent-api, fromFile
+examples/                # walkthrough + critique-and-evolve
+docs/                    # QUICKSTART + MIGRATION
+ui/                      # Next.js admin UI (private workspace; not published to npm)
+reference/toolstac/      # the in-house implementation that proved the pattern
+```
 
 ## Discipline
 
-**Don't paraphrase the meta-prompt.** `reference/toolstac/core/prompt-enhancer-agent.ts:187-372` is the surgical-editor-of-prompts prompt, production-tested. Copy it byte-for-byte into `src/seeded-prompts/enhancer.md`. Improvements happen through the library's own evolution loop after launch, not through manual edits during port. The same applies to any prompt content lifted from reference: byte-for-byte, then evolved through the substrate.
+These are the load-bearing rules. They keep the substrate small.
+
+**Don't paraphrase the meta-prompt.** `reference/toolstac/core/prompt-enhancer-agent.ts:187-372` is the surgical-editor-of-prompts prompt, production-tested. The byte-for-byte port lives at `src/seeded-prompts/enhancer.md`. Improvements to it happen through the substrate's own evolution loop after publish, not through manual edits during port. Same applies to any prompt content lifted from reference: byte-for-byte, then evolved through the substrate.
 
 **The body is opaque to the substrate.** The library does not parse, validate, or schema-check revision bodies. No token field, no preservation check at evolve time. If the LLM drops a placeholder the consumer cares about, the consumer's renderer produces broken output, the consumer signal-fails, and the substrate evolves again. Don't reintroduce body inspection.
 
-**Append-only, revision-scoped.** Revisions, invocations, and signals are never mutated or deleted. Rollback creates a NEW revision with the old body. Evolution reads telemetry of the active revision **only** — old invocations stay attached to their original revision for provenance, but never feed forward into a new evolution. These two invariants are the whole reason the substrate works; don't trade them for convenience.
+**Append-only, revision-scoped.** Revisions, invocations, and signals are never mutated or deleted. Rollback creates a NEW revision (`source: "rollback"`) with the target's body. Evolution reads telemetry of the active revision **only** — old invocations stay attached to their original revision for provenance, but never feed forward into a new evolution. These two invariants are the whole reason the substrate works; don't trade them for convenience.
 
-**One PR per step.** No monolithic "shipped all the steps" PR. Each PR is independently reviewable and revertable.
-
-**BYO LLM, no exceptions.** The library does not depend on `@anthropic-ai/sdk`, `claude-agent-sdk`, `openai`, or any model provider. The only place an LLM enters the substrate is the `using` callback consumers pass to `evolve`. Reference examples in `examples/` may import provider SDKs; `src/` may not.
+**BYO LLM, no exceptions.** The library does not depend on `@anthropic-ai/sdk`, `@anthropic-ai/claude-agent-sdk`, `openai`, or any model provider as a hard dep. The optional peer deps in `package.json` (`@anthropic-ai/claude-agent-sdk`, `ai`, `unstorage`) are loaded by reference shims under `src/*` only when consumers import those subpaths. The only place an LLM enters the substrate is the `using` callback consumers pass to `evolve`.
 
 **Consumer owns rendering.** The library doesn't ship a template engine. Consumers receive a body from `bp.get(...)` and substitute their own variables however they want (handlebars, mustache, raw `replaceAll`, anything). The `vars` they report via `bp.record(...)` are stored as telemetry metadata for evolve, not used by the library to render anything.
 
-**Substrate independence.** No Next.js, no specific ORM, no Redis client wrapper, no Vault, no logging framework. `Store` reference implementations choose their own backend internals. If a contributor proposes coupling the library to anything WOPR-portfolio-specific (`@wopr-network/wopr` core, `@tsavo/nefariousplan-core`), reject the PR.
+**Substrate independence.** No Next.js, no specific ORM beyond Drizzle for SqliteStore, no Redis client wrapper, no Vault, no logging framework. The Next.js admin UI is a separate workspace at `ui/`, not part of the library. If a contributor proposes coupling the library to anything WOPR-portfolio-specific, reject the PR.
 
-## Test discipline
+**Library, narrow.** This is for codebases without a prompt platform. If you have Langfuse / Agenta / PromptLayer / Helicone, take the seeded `_enhancer` and propose reflective evolution there directly. We are not shipping platform adapters; that path was tried and walked away from. Don't reintroduce it without a long conversation about why.
 
-- `InMemoryStore` MUST pass a shared `Store`-contract test suite. Future store implementations reuse the same suite.
-- The factory's three operations test against a `MockProvider` returning deterministic responses.
-- The token-preservation enforcement test uses a `MockProvider` that intentionally drops a token; assert rejection.
-- Real-LLM end-to-end tests are tagged `@integration` and run manually before release.
+## Branch + PR workflow
 
-## Versioning
+- Open an issue first if your change touches public API or the substrate's invariants. For bug fixes and tight scope, just open a PR.
+- One change per PR. Don't bundle drive-bys into a feature PR or vice-versa.
+- Conventional-style commits are appreciated but not enforced (`fix:`, `feat:`, `docs:`, `test:`).
+- Tests pass + typecheck clean before review (CI enforces both).
+- For UI-touching PRs, include a screenshot or short note about what you verified in the browser. Type checking and test suites verify code correctness, not feature correctness.
 
-- Revision versions increment by `+1` per artifact (simpler than toolstac's `+0.1`; numeric monotonic per artifactKey).
-- Library package versions are semver. Interface-breaking changes are major bumps.
-- A major bump MAY require a one-time migration of stored revisions; ship a migration tool with any major.
+## When to ask first
 
-## When to ask Sir
-
-- Before changing any public API signature after v0 ships.
-- Before adopting any external dependency beyond TypeScript / a test framework.
-- Before writing user-facing copy (READMEs, error messages). Voice matters.
-- Before publishing the package publicly.
+- Changes to the public API of `betterPrompts(...)` or any `Store` interface method.
+- Adding a new external dependency to `package.json` (peer or otherwise).
+- Adding a new `Store` reference implementation that changes the contract shape.
+- Changes to `src/seeded-prompts/enhancer.md` (the meta-prompt).
 
 ## When to proceed without asking
 
 - Adding tests.
 - Fixing bugs that don't change public API.
-- Adding new `Store` reference implementations.
-- Boy-scout cleanups in code Sir hasn't named as off-limits.
-- Updating `reference/` if upstream toolstac evolves and the library should track it.
+- Boy-scout cleanups in code that hasn't been called off-limits.
+- Doc/README/CHANGELOG fixes.
+- UI improvements that don't change the substrate's API surface.
+
+## License
+
+MIT — see [LICENSE](./LICENSE). Contributions are accepted under the same terms.

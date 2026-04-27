@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "next dev -p 3030",
     "build": "next build",
-    "start": "next start -p 3030"
+    "start": "next start -p 3030",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.29.0",

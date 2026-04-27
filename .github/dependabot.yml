@@ -1,0 +1,49 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      types:
+        patterns:
+          - "@types/*"
+      drizzle:
+        patterns:
+          - drizzle-orm
+          - drizzle-kit
+      vitest:
+        patterns:
+          - vitest
+          - "@vitest/*"
+
+  - package-ecosystem: npm
+    directory: /ui
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      types:
+        patterns:
+          - "@types/*"
+      next:
+        patterns:
+          - next
+          - eslint-config-next
+      react:
+        patterns:
+          - react
+          - react-dom
+      codemirror:
+        patterns:
+          - "@codemirror/*"
+          - "@uiw/react-codemirror"
+      anthropic:
+        patterns:
+          - "@anthropic-ai/*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

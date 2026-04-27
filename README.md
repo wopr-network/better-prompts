@@ -119,3 +119,9 @@ Pre-release v0. Deliberately narrow: a substrate for codebases without a prompt 
 - [LINEAGE.md](./LINEAGE.md) — where this comes from
 - [examples/walkthrough.ts](./examples/walkthrough.ts) — the whole API top to bottom
 - [reference/toolstac/](./reference/) — the in-house implementation that proved the pattern
+
+## Related
+
+- [nefariousplan.com](https://nefariousplan.com): true cyber crime, post-CVE. The editorial pipeline that drove the patterns this library encodes.
+- [horizon-city.com](https://horizon-city.com): *Horizon City*, a cyberpunk fiction anthology, and *I Hate It Here*, a blog about cyber terrorism.
+- [WOPR Network](https://github.com/wopr-network): the org this library lives in.
