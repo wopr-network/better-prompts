@@ -49,10 +49,10 @@ jobs:
           cache: pnpm
           cache-dependency-path: ui/pnpm-lock.yaml
 
-      - name: install (root, for file: link)
+      - name: "install (root, for file: link)"
         run: pnpm install --frozen-lockfile
 
-      - name: build library (UI consumes ./dist via file: link)
+      - name: "build library (UI consumes ./dist via file: link)"
         run: pnpm build
 
       - name: install (ui)
