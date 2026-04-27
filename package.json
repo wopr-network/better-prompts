@@ -1,0 +1,90 @@
+{
+  "name": "@wopr-network/better-prompts",
+  "version": "0.0.0",
+  "description": "Drop in where you already load prompts. Get better prompts over time.",
+  "license": "MIT",
+  "private": false,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./store": {
+      "types": "./dist/store/index.d.ts",
+      "import": "./dist/store/index.js"
+    },
+    "./store/sqlite": {
+      "types": "./dist/store/sqlite/index.d.ts",
+      "import": "./dist/store/sqlite/index.js"
+    },
+    "./store/kv": {
+      "types": "./dist/store/kv/index.d.ts",
+      "import": "./dist/store/kv/index.js"
+    },
+    "./agent-api": {
+      "types": "./dist/agent-api.d.ts",
+      "import": "./dist/agent-api.js"
+    },
+    "./claude-agent": {
+      "types": "./dist/claude-agent.d.ts",
+      "import": "./dist/claude-agent.js"
+    },
+    "./ai-sdk": {
+      "types": "./dist/ai-sdk.d.ts",
+      "import": "./dist/ai-sdk.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src/seeded-prompts"
+  ],
+  "bin": {
+    "better-prompts": "dist/cli.js",
+    "bp": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json && cp -r src/seeded-prompts dist/seeded-prompts && chmod +x dist/cli.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "walkthrough": "tsx examples/walkthrough.ts",
+    "walkthrough:fresh": "FRESH=1 tsx examples/walkthrough.ts",
+    "critique-and-evolve": "tsx examples/critique-and-evolve.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "citty": "^0.2.2",
+    "consola": "^3.4.2",
+    "drizzle-orm": "^0.36.0"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.119",
+    "ai": "^6.0.0",
+    "unstorage": "^1.13.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/claude-agent-sdk": { "optional": true },
+    "ai": { "optional": true },
+    "unstorage": { "optional": true }
+  },
+  "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.119",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.7.0",
+    "ai": "^6.0.0",
+    "drizzle-kit": "^0.28.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.0",
+    "unstorage": "^1.13.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
+  }
+}
