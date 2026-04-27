@@ -53,7 +53,7 @@
     "critique-and-evolve": "tsx examples/critique-and-evolve.ts"
   },
   "dependencies": {
-    "better-sqlite3": "^11.3.0",
+    "better-sqlite3": "^12.9.0",
     "citty": "^0.2.2",
     "consola": "^3.4.2",
     "drizzle-orm": "^0.36.0"
