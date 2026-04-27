@@ -71,7 +71,7 @@
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.119",
     "@types/better-sqlite3": "^7.6.11",
-    "@types/node": "^22.7.0",
+    "@types/node": "^25.6.0",
     "ai": "^6.0.0",
     "drizzle-kit": "^0.28.0",
     "tsx": "^4.21.0",
