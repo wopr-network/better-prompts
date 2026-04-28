@@ -11,3 +11,6 @@ tsconfig.tsbuildinfo
 .env.local
 .env.*.local
 .DS_Store
+# Verify-cache (step 6 of the standing-invariant runtime).
+# Build artifact: deletable, rebuilds on next run.
+.provekit/cache/
