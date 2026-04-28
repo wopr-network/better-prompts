@@ -1,6 +1,6 @@
 {
   "name": "@wopr-network/better-prompts",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Drop in where you already load prompts. Get better prompts over time.",
   "license": "MIT",
   "private": false,
