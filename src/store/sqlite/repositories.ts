@@ -117,7 +117,7 @@ export class InvocationRepository {
       .select()
       .from(schema.invocations)
       .where(eq(schema.invocations.revisionId, revisionId))
-      .orderBy(desc(schema.invocations.date))
+      .orderBy(asc(schema.invocations.date))
       .limit(limit);
     return rows.map(rowToInvocation);
   }
