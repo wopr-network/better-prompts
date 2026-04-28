@@ -1,0 +1,27 @@
+{
+  "symptomSummary": "After ~30 invocations on a revision, evolve produces new revisions addressing old problems instead of currently flagged issues.",
+  "rootCauseHypothesis": "Feedback retrieval query likely lacks proper ordering (defaults to oldest-first) or filtering by current revision, causing the system to prioritize accumulated historical feedback over recent signals.",
+  "fixHypothesis": "Add ORDER BY timestamp DESC or filter feedback to only recent/current-revision entries in the query that fetches feedback for evolution; potentially add a LIMIT on recent feedback only.",
+  "primaryLocation": {
+    "file": "src/store/sqlite/repositories.ts",
+    "rationale": "Recently changed file containing database queries; threshold-based symptom (~30 invocations) strongly suggests a query without proper ORDER BY or revision filtering, causing it to return oldest feedback first or mix feedback across all revisions indiscriminately.",
+    "confidence": "high"
+  },
+  "candidateLocations": [
+    {
+      "file": "reference/toolstac/core/prompt-evolution-service.ts",
+      "rationale": "Orchestrates the evolution process and likely calls the repository to fetch feedback; may be requesting feedback without specifying revision or time constraints.",
+      "confidence": "medium"
+    },
+    {
+      "file": "reference/toolstac/core/prompt-enhancer-agent.ts",
+      "rationale": "Largest file in the evolution subsystem; may contain logic that processes or filters feedback incorrectly, though less likely to be the root cause than the data layer.",
+      "confidence": "low"
+    },
+    {
+      "file": "ui/app/api/evolve/route.ts",
+      "rationale": "API endpoint for evolution; may pass incorrect parameters to the evolution service, though typically endpoints are thin wrappers.",
+      "confidence": "low"
+    }
+  ]
+}

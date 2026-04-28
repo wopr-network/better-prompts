@@ -1,0 +1,31 @@
+{
+  "symptomSummary": "After approximately 30 invocations on the current revision, evolve generates revisions that fix old problems instead of currently flagged issues.",
+  "rootCauseHypothesis": "The feedback selection query likely has a hardcoded LIMIT (probably 30) without proper ordering by recency, causing it to return the oldest 30 feedback records instead of the most recent 30 once the total exceeds the limit.",
+  "fixHypothesis": "Add ORDER BY timestamp/created_at DESC to the feedback query, or implement a weighted sampling strategy that prioritizes recent feedback over older feedback, possibly with exponential decay.",
+  "primaryLocation": {
+    "file": "src/store/sqlite/repositories.ts",
+    "rationale": "This file was recently changed and handles data queries. The threshold of ~30 invocations strongly suggests a LIMIT clause in a SQL query that lacks proper ordering. Repository layer is where feedback selection logic would live.",
+    "confidence": "high",
+    "function": "feedback query method (likely getFeedback, getInvocations, or similar)"
+  },
+  "candidateLocations": [
+    {
+      "file": "reference/toolstac/core/prompt-evolution-service.ts",
+      "rationale": "This service orchestrates the evolution process and likely calls the repository to fetch feedback. It may contain additional filtering or sampling logic that contributes to the problem.",
+      "confidence": "medium",
+      "function": "evolution orchestration method"
+    },
+    {
+      "file": "ui/app/api/evolve/route.ts",
+      "rationale": "The API endpoint that triggers evolution. May pass parameters that affect feedback selection, though less likely to contain the core query logic.",
+      "confidence": "low",
+      "function": "POST handler"
+    },
+    {
+      "file": "reference/toolstac/core/prompt-enhancer-agent.ts",
+      "rationale": "This agent processes prompts and may include logic for selecting or weighting feedback examples, though the threshold behavior points more strongly to a database query issue.",
+      "confidence": "low",
+      "function": "feedback processing method"
+    }
+  ]
+}

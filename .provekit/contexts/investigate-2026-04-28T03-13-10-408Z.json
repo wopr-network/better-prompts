@@ -1,0 +1,27 @@
+{
+  "symptomSummary": "Evolve feature ignores recent feedback after ~30 invocations, generating revisions that address old problems instead of current issues.",
+  "rootCauseHypothesis": "The repository query fetching invocation feedback likely retrieves all historical feedback without proper recency ordering or limiting, causing older feedback to dilute or overshadow recent issues as the dataset grows.",
+  "fixHypothesis": "Add ORDER BY timestamp DESC and LIMIT clauses to feedback queries, or implement exponential decay weighting that prioritizes recent invocations over historical ones.",
+  "primaryLocation": {
+    "file": "src/store/sqlite/repositories.ts",
+    "rationale": "Repository layer queries invocation data for evolution. A query without recency ordering or limits would cause exactly this symptom: works fine initially, degrades as feedback accumulates. The file was recently modified, suggesting active work in this area.",
+    "confidence": "high"
+  },
+  "candidateLocations": [
+    {
+      "file": "reference/toolstac/core/prompt-evolution-service.ts",
+      "rationale": "Evolution service orchestrates how feedback is aggregated and processed into new revisions. If it treats all feedback equally rather than weighting recent items, old problems would persist.",
+      "confidence": "high"
+    },
+    {
+      "file": "reference/toolstac/core/prompt-enhancer-agent.ts",
+      "rationale": "Agent constructs prompts from feedback. The prompt construction may not emphasize or prioritize recent feedback in the context sent to the LLM.",
+      "confidence": "medium"
+    },
+    {
+      "file": "ui/app/api/evolve/route.ts",
+      "rationale": "API endpoint that triggers evolution. May not pass parameters to limit or weight feedback by recency when calling the evolution service.",
+      "confidence": "low"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "symptomSummary": "After a prompt revision accumulates ~30+ invocations, evolve ignores recent negative feedback and generates regressions instead of fixes.",
+  "rootCauseHypothesis": "The invocation query for a revision sorts ascending by date and then applies a hard limit of 25, so once more than 25 invocations exist the query returns only the oldest 25 — every recent thumbs-down signal falls outside the window and is silently discarded. The ~30-invocation threshold maps directly to exceeding this 25-row cap.",
+  "fixHypothesis": "Flip the sort order in `InvocationRepository.forRevision` from ascending to descending so the query returns the most-recent N invocations instead of the oldest N; optionally also surface the `telemetryWindow` default (currently 25 in `src/index.ts`) as a tunable if larger windows are desirable.",
+  "primaryLocation": {
+    "file": "src/store/sqlite/repositories.ts",
+    "rationale": "The query `.orderBy(asc(schema.invocations.date)).limit(limit)` fetches the oldest `limit` (default 25) invocations for a revision. Once invocation count exceeds 25, all newer invocations — and their associated signals — are never returned to the evolve pipeline. Changing `asc` to `desc` makes the window track recency correctly.",
+    "confidence": "high",
+    "function": "forRevision",
+    "lineRange": [
+      115,
+      123
+    ]
+  },
+  "candidateLocations": [
+    {
+      "file": "src/index.ts",
+      "rationale": "The `evolve` function passes `telemetryWindow` (default 25) to `store.invocationsForRevision`. Raising this default is a complementary fix, but the root ordering bug in the repository means a larger limit would still return old data first.",
+      "confidence": "medium",
+      "function": "evolve",
+      "lineRange": [
+        191,
+        210
+      ]
+    },
+    {
+      "file": "src/store/sqlite/repositories.ts",
+      "rationale": "`forArtifact` correctly uses `desc` ordering — confirming the `asc` in `forRevision` is an inconsistency rather than deliberate design.",
+      "confidence": "medium",
+      "function": "forArtifact",
+      "lineRange": [
+        125,
+        133
+      ]
+    },
+    {
+      "file": "src/store/types.ts",
+      "rationale": "If the Store interface or KV-backed implementation also defines `invocationsForRevision`, it may share the same ascending-sort defect and need a parallel fix for non-SQLite stores.",
+      "confidence": "low",
+      "function": "invocationsForRevision",
+      "lineRange": [
+        1,
+        68
+      ]
+    },
+    {
+      "file": "src/store/kv/kv-store.ts",
+      "rationale": "KV store implementations often accumulate entries in insertion order with no guaranteed sort; if evolve can run against the KV backend, its invocation retrieval may lack a recency sort and exhibit the same symptom.",
+      "confidence": "low",
+      "function": "invocationsForRevision",
+      "lineRange": [
+        1,
+        196
+      ]
+    }
+  ]
+}

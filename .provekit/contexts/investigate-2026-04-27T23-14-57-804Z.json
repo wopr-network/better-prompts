@@ -1,0 +1,57 @@
+{
+  "symptomSummary": "After a prompt revision accumulates ~30 invocations, the evolve loop stops fixing current failures and instead produces revisions that address older issues or are measurably worse than the prior version.",
+  "rootCauseHypothesis": "The feedback retrieval query fetches all historical invocation records for the artifact without ordering by recency or capping to a window, so as total invocation count grows the older (majority) records statistically drown out the recent thumbs-down signals that should be driving the next revision.",
+  "fixHypothesis": "The repository method that loads invocations/feedback for the evolve prompt should ORDER BY timestamp DESC with a LIMIT N (e.g. 20–50 most recent) or apply exponential recency weighting before assembling the feedback list passed to the enhancer agent, so recent negative signals dominate older ones.",
+  "primaryLocation": {
+    "file": "src/store/sqlite/repositories.ts",
+    "rationale": "Threshold-shaped failures that appear only after sufficient data accumulates almost always live in the query/repository layer. This is the sole SQLite data-access module; a SELECT without ORDER BY timestamp DESC + LIMIT means every new invocation dilutes recent signal. The symptom resets on rollback (fresh revision, zero history) and recurs once traffic rebuilds — exactly what an unwindowed full-table scan produces.",
+    "confidence": "high",
+    "function": "getInvocations or getFeedback (whichever method supplies records to the evolve pipeline)",
+    "lineRange": [
+      1,
+      186
+    ]
+  },
+  "candidateLocations": [
+    {
+      "file": "reference/toolstac/core/prompt-evolution-service.ts",
+      "rationale": "This service assembles the context (feedback records + revision history) passed to the enhancer agent. Even if the repository returns all rows, a recency cap or weight could be applied here. Its absence is the second most likely root cause.",
+      "confidence": "high",
+      "function": "evolve or buildEvolveContext",
+      "lineRange": [
+        1,
+        167
+      ]
+    },
+    {
+      "file": "reference/toolstac/core/prompt-enhancer-agent.ts",
+      "rationale": "The enhancer agent constructs the actual LLM prompt driving revision generation. If it concatenates all supplied feedback without recency sorting, recent thumbs-down events are buried in a long list of older signals.",
+      "confidence": "medium",
+      "function": "enhance or evolve",
+      "lineRange": [
+        1,
+        433
+      ]
+    },
+    {
+      "file": "ui/app/api/evolve/route.ts",
+      "rationale": "Entry point for the evolve operation — if it fetches or forwards an unbounded invocation list downstream, this is where the window cap should be applied first.",
+      "confidence": "medium",
+      "function": "POST handler",
+      "lineRange": [
+        1,
+        31
+      ]
+    },
+    {
+      "file": "src/index.ts",
+      "rationale": "The public evolve() API surface may contain intermediate orchestration logic that selects which invocations to surface; a missing recency filter here would affect all downstream consumers.",
+      "confidence": "low",
+      "function": "evolve or runEvolve",
+      "lineRange": [
+        1,
+        390
+      ]
+    }
+  ]
+}

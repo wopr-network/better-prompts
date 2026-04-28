@@ -1,0 +1,57 @@
+{
+  "symptomSummary": "After a prompt revision accumulates ~30+ invocations, the evolve command ignores recent failures and regresses, optimizing against stale older feedback instead.",
+  "rootCauseHypothesis": "The `forRevision` repository method fetches invocations with `orderBy(asc(date))` and a hard `limit(25)`. Once a revision has more than 25 invocations, only the oldest 25 are returned — recent flagged outputs are silently dropped from the evolve context.",
+  "fixHypothesis": "Change the `orderBy` in `forRevision` from `asc(schema.invocations.date)` to `desc(schema.invocations.date)` so the query returns the N most-recent invocations instead of the N oldest, matching the already-correct `forArtifact` method which already uses `desc` order.",
+  "primaryLocation": {
+    "file": "src/store/sqlite/repositories.ts",
+    "rationale": "Line 120 uses `orderBy(asc(schema.invocations.date))` with `.limit(limit)` where limit defaults to 25. SQL ASC+LIMIT returns the earliest rows first — the oldest 25 invocations ever recorded for that revision. The evolve path in src/index.ts:201 calls `store.invocationsForRevision(active.id, telemetryWindow)` where telemetryWindow defaults to 25, so once invocation count exceeds 25 the feedback window is permanently anchored to the oldest records and never advances. The ~30-invocation symptom threshold is exactly consistent with a LIMIT-25 ascending query.",
+    "confidence": "high",
+    "function": "forRevision",
+    "lineRange": [
+      115,
+      121
+    ]
+  },
+  "candidateLocations": [
+    {
+      "file": "src/index.ts",
+      "rationale": "The evolve function passes `telemetryWindow` (default 25) to the repository without any recency guard. Even after fixing the sort order, this is a good place to add defense-in-depth recency filtering or to document the ordering contract expected of store adapters.",
+      "confidence": "medium",
+      "function": "evolve",
+      "lineRange": [
+        191,
+        210
+      ]
+    },
+    {
+      "file": "src/store/types.ts",
+      "rationale": "The store interface declares `invocationsForRevision` without specifying sort semantics. Any alternative adapter could independently implement ascending-first ordering and exhibit the same bug.",
+      "confidence": "low",
+      "function": "invocationsForRevision (interface)",
+      "lineRange": [
+        1,
+        68
+      ]
+    },
+    {
+      "file": "src/store/kv/kv-store.ts",
+      "rationale": "The KV store is a parallel implementation of the same interface. If it iterates invocations without recency ordering it would exhibit the same regression for users on the KV backend.",
+      "confidence": "low",
+      "function": "invocationsForRevision",
+      "lineRange": [
+        1,
+        196
+      ]
+    },
+    {
+      "file": "ui/app/api/evolve/route.ts",
+      "rationale": "The API route for evolve may pass a telemetryWindow value to the core evolve function; if it forwards hardcoded limits it could amplify or mask the underlying ordering problem.",
+      "confidence": "low",
+      "function": "POST handler",
+      "lineRange": [
+        1,
+        31
+      ]
+    }
+  ]
+}

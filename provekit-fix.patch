@@ -1,0 +1,152 @@
+diff --git a/src/repositories.regression.test.ts b/src/repositories.regression.test.ts
+new file mode 100644
+index 0000000..347e5eb
+--- /dev/null
++++ b/src/repositories.regression.test.ts
+@@ -0,0 +1,132 @@
++import { it, expect } from "vitest";
++import Database from "better-sqlite3";
++import { drizzle } from "drizzle-orm/better-sqlite3";
++
++import { InvocationRepository } from "./store/sqlite/repositories";
++
++const SCHEMA_DDL = `
++  CREATE TABLE IF NOT EXISTS revisions (
++    id TEXT PRIMARY KEY,
++    artifact_key TEXT NOT NULL,
++    version INTEGER NOT NULL,
++    created_at TEXT NOT NULL,
++    body TEXT NOT NULL,
++    source TEXT NOT NULL
++  );
++  CREATE INDEX IF NOT EXISTS revisions_by_artifact ON revisions(artifact_key, version);
++
++  CREATE TABLE IF NOT EXISTS invocations (
++    id TEXT PRIMARY KEY,
++    artifact_key TEXT NOT NULL,
++    revision_id TEXT NOT NULL,
++    vars TEXT NOT NULL,
++    metadata TEXT NOT NULL,
++    output TEXT NOT NULL,
++    date TEXT NOT NULL
++  );
++  CREATE INDEX IF NOT EXISTS invocations_by_revision ON invocations(revision_id);
++  CREATE INDEX IF NOT EXISTS invocations_by_artifact ON invocations(artifact_key, date);
++
++  CREATE TABLE IF NOT EXISTS signals (
++    id TEXT PRIMARY KEY,
++    invocation_id TEXT NOT NULL,
++    verdict TEXT NOT NULL,
++    reason TEXT,
++    severity REAL,
++    source TEXT,
++    date TEXT NOT NULL
++  );
++  CREATE INDEX IF NOT EXISTS signals_by_invocation ON signals(invocation_id);
++`;
++
++it("regression: The evolve feature stops responding to recent feedback after the artifact accumu", async () => {
++  // Real in-memory SQLite + real drizzle wrapper. We must drive the actual
++  // patched repository — not a stub — so the asc-vs-desc ordering bug is
++  // visible to the assertions below.
++  const sqlite = new Database(":memory:");
++  sqlite.exec(SCHEMA_DDL);
++  // Drizzle's runtime query builder does not require the schema object to
++  // be threaded through here; the repository imports its own schema from
++  // ./store/sqlite/repositories' internal module. We only need a working
++  // BetterSQLite3Database handle pointed at the same connection.
++  const db = drizzle(sqlite) as unknown as ConstructorParameters<
++    typeof InvocationRepository
++  >[0];
++
++  const repo = new InvocationRepository(db);
++
++  // The default page size for InvocationRepository.forRevision is 25; the bug
++  // surfaces "after ~30 invocations", i.e. once total rows exceed the limit.
++  // Insert 40 rows so the newest 15 sit beyond the limit when ordering is
++  // wrong (oldest-first). Dates are chosen to be strictly monotonic and
++  // lexicographically sortable.
++  const revisionId = "rev-under-test";
++  const artifactKey = "artifact-under-test";
++  const TOTAL = 40;
++  const insertedNewestFirst: string[] = []; // index 0 = newest output
++
++  for (let i = 0; i < TOTAL; i++) {
++    // Pad so ISO-like strings sort lexicographically the same as numerically.
++    const minute = String(i).padStart(3, "0");
++    const date = `2026-01-01T00:${minute}:00.000Z`;
++    const output = `output-${minute}`;
++    await repo.record({
++      artifactKey,
++      revisionId,
++      vars: {},
++      metadata: {},
++      output,
++      date,
++    });
++  }
++  for (let i = TOTAL - 1; i >= 0; i--) {
++    const minute = String(i).padStart(3, "0");
++    insertedNewestFirst.push(`output-${minute}`);
++  }
++
++  // Sanity: rows are physically present in the table even if forRevision
++  // hides them.
++  const rawCount = sqlite
++    .prepare("SELECT COUNT(*) AS c FROM invocations WHERE revision_id = ?")
++    .get(revisionId) as { c: number };
++  expect(rawCount.c).toBe(TOTAL);
++
++  // Hit the real method with its default limit (25). If forRevision orders
++  // ascending by date (the bug), this returns output-000..output-024 — the
++  // OLDEST invocations — and entirely omits the most-recent feedback. If it
++  // orders descending (the fix), it returns output-039..output-015.
++  const fetched = await repo.forRevision(revisionId);
++
++  // Force preconditions — never gate the bug-class assertion behind an `if`.
++  expect(fetched).toBeDefined();
++  expect(Array.isArray(fetched)).toBe(true);
++  expect(fetched.length).toBe(25);
++
++  const fetchedOutputs = fetched.map((inv) => inv.output);
++
++  // Bug-class assertion #1: the absolute-newest invocation must appear in
++  // the page returned to the evolve handler. Under the bug it does not,
++  // because the page is filled with the 25 oldest rows.
++  expect(fetchedOutputs).toContain(`output-${String(TOTAL - 1).padStart(3, "0")}`);
++
++  // Bug-class assertion #2: every row in the returned page must be one of
++  // the 25 most-recent rows in the table. The Z3 witness pins this exactly:
++  // there must be no (older_row in fetched, newer_row excluded) pair.
++  const newest25 = new Set(insertedNewestFirst.slice(0, 25));
++  for (const out of fetchedOutputs) {
++    expect(newest25.has(out)).toBe(true);
++  }
++
++  // Bug-class assertion #3: the page must NOT be the 25 oldest rows, which
++  // is exactly the buggy behavior (asc-ordered limit).
++  const oldest25 = new Set(
++    Array.from({ length: 25 }, (_, i) => `output-${String(i).padStart(3, "0")}`),
++  );
++  const overlapWithOldest = fetchedOutputs.filter((o) => oldest25.has(o));
++  // The newest 25 (indices 15..39) overlap the oldest 25 (indices 0..24)
++  // only at indices 15..24 — i.e. 10 rows. Under the buggy asc-order this
++  // overlap would be 25 (every row).
++  expect(overlapWithOldest.length).toBeLessThan(25);
++
++  sqlite.close();
++});
+\ No newline at end of file
+diff --git a/src/store/sqlite/repositories.ts b/src/store/sqlite/repositories.ts
+index 17e1d21..a91a4a7 100644
+--- a/src/store/sqlite/repositories.ts
++++ b/src/store/sqlite/repositories.ts
+@@ -117,7 +117,7 @@ export class InvocationRepository {
+       .select()
+       .from(schema.invocations)
+       .where(eq(schema.invocations.revisionId, revisionId))
+-      .orderBy(asc(schema.invocations.date))
++      .orderBy(desc(schema.invocations.date))
+       .limit(limit);
+     return rows.map(rowToInvocation);
+   }

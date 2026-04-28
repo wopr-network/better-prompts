@@ -1,0 +1,57 @@
+{
+  "symptomSummary": "After a prompt revision accumulates ~30+ invocations, the evolve loop stops addressing recent failures and may produce regressions, reverting to correct behavior only after rollback to a fresh (low-traffic) revision.",
+  "rootCauseHypothesis": "The feedback query used to build the evolve context fetches signals without enforcing recency ordering or a recency-biased cap, so as the feedback log grows beyond a threshold the result set is dominated by older entries — burying newly flagged failures beneath earlier (already-addressed) ones before they reach the LLM.",
+  "fixHypothesis": "Add an ORDER BY timestamp/id DESC with a hard LIMIT (or recency-weighted sampling) to the feedback-fetch query so the evolution step always sees the most recent N signals regardless of how large the log has grown; alternatively, filter to signals created after the revision's own creation timestamp.",
+  "primaryLocation": {
+    "file": "src/store/sqlite/repositories.ts",
+    "rationale": "This is the SQLite repository layer — the most likely place where feedback/signal rows are queried. A missing or wrong ORDER BY (e.g. ASC instead of DESC, or no ordering at all) combined with the absence of a LIMIT would cause all historical signals to be returned in insertion order, making old feedback crowd out recent flags once the table grows past ~30 rows. The symptom threshold of ~30 invocations matches a query that works correctly in small datasets but degrades as accumulated rows grow.",
+    "confidence": "high",
+    "function": "getSignals or equivalent feedback-fetch method",
+    "lineRange": [
+      1,
+      186
+    ]
+  },
+  "candidateLocations": [
+    {
+      "file": "src/index.ts",
+      "rationale": "Core SDK entry point is likely where feedback signals are assembled into the prompt sent to the LLM for evolution. Even if the repository returns signals in correct order, this layer may splice them without a recency cap, passing an ever-growing list that dilutes recent entries.",
+      "confidence": "high",
+      "function": "evolve or buildEvolveContext",
+      "lineRange": [
+        1,
+        390
+      ]
+    },
+    {
+      "file": "ui/app/api/evolve/route.ts",
+      "rationale": "The Next.js evolve API route is the thin orchestration layer between the UI/trigger and the core evolve logic. It may pass the raw full feedback collection to the evolve call without slicing to recent items, making the bug observable from the UI/API surface.",
+      "confidence": "medium",
+      "function": "POST handler",
+      "lineRange": [
+        1,
+        31
+      ]
+    },
+    {
+      "file": "reference/toolstac/core/prompt-evolution-service.ts",
+      "rationale": "A dedicated prompt evolution service in the reference implementation would be the canonical place where feedback is selected and weighted. If this service lacks a recency filter it would exhibit exactly the described degradation once enough feedback accumulates.",
+      "confidence": "medium",
+      "function": "evolve or selectFeedbackWindow",
+      "lineRange": [
+        1,
+        167
+      ]
+    },
+    {
+      "file": "src/store/kv/kv-store.ts",
+      "rationale": "If the KV store back-end is used instead of SQLite in some deployments, its list/scan operation likely returns keys in insertion or lexicographic order with no built-in recency sort or pagination limit, producing the same old-feedback-dominance symptom.",
+      "confidence": "low",
+      "function": "list or getAll (signals/feedback namespace)",
+      "lineRange": [
+        1,
+        196
+      ]
+    }
+  ]
+}

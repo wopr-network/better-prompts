@@ -1,0 +1,52 @@
+{
+  "symptomSummary": "After a prompt revision accumulates 30+ invocations, running evolve stops addressing recent feedback and instead regresses, fixing stale issues while making current ones worse.",
+  "rootCauseHypothesis": "InvocationRepository.forRevision fetches invocations sorted by date ascending with a hard LIMIT of 25, so once a revision exceeds that count the query always returns the oldest 25 rows, silently dropping all newer invocations — including recently flagged thumbs-down signals — from the evolve context.",
+  "fixHypothesis": "Change the orderBy in forRevision from asc(schema.invocations.date) to desc(schema.invocations.date) so the telemetry window always contains the N most-recent invocations, matching the already-correct sort direction used by the sibling forArtifact method; callers needing chronological display order can reverse the slice in application code.",
+  "primaryLocation": {
+    "file": "src/store/sqlite/repositories.ts",
+    "rationale": "forRevision orders by asc(invocations.date) then applies LIMIT 25 (lines 120–121). Fewer than 26 invocations → all rows returned → evolve works. Cross the threshold → oldest 25 rows returned forever → all recent feedback invisible. The sibling forArtifact at line 125 already uses desc(date), confirming the asc in forRevision is an oversight. The evolve path calls this via store.invocationsForRevision(active.id, telemetryWindow) at src/index.ts:201.",
+    "confidence": "high",
+    "function": "InvocationRepository.forRevision",
+    "lineRange": [
+      115,
+      123
+    ]
+  },
+  "candidateLocations": [
+    {
+      "file": "src/index.ts",
+      "rationale": "telemetryWindow defaults to 25 (line 86) and is passed into forRevision. Fixing sort order is necessary; also consider raising or exposing this cap.",
+      "confidence": "medium",
+      "function": "evolve",
+      "lineRange": [
+        86,
+        201
+      ]
+    },
+    {
+      "file": "src/store/sqlite/sqlite-store.ts",
+      "rationale": "Thin delegation layer; no logic, but confirms the join point between index.ts and repositories.ts.",
+      "confidence": "low",
+      "function": "invocationsForRevision",
+      "lineRange": [
+        94,
+        94
+      ]
+    },
+    {
+      "file": "reference/toolstac/core/prompt-evolution-service.ts",
+      "rationale": "Reference evolve service; check for the same missing recency ordering if used in parallel.",
+      "confidence": "low",
+      "function": "getPromptHistory",
+      "lineRange": [
+        99,
+        101
+      ]
+    },
+    {
+      "file": "reference/toolstac/core/prompt-enhancer-agent.ts",
+      "rationale": "Consumes the telemetry window to build the evolve prompt; secondary fix site if explicit recency-decay weighting is desired beyond the sort-order fix.",
+      "confidence": "low"
+    }
+  ]
+}

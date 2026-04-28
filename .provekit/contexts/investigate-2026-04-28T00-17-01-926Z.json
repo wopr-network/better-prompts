@@ -1,0 +1,57 @@
+{
+  "symptomSummary": "After a prompt revision accumulates ~30+ invocations, the evolve loop stops incorporating recent feedback and instead produces revisions based on older signals, sometimes making quality worse.",
+  "rootCauseHypothesis": "The forRevision query in repositories.ts fetches invocations sorted ascending by date (oldest-first) and then applies the telemetryWindow LIMIT (default 25). Once a revision exceeds 25 invocations, the query silently returns the 25 oldest rows, permanently excluding all newer feedback from the evolve loop.",
+  "fixHypothesis": "Change the orderBy in forRevision from asc(schema.invocations.date) to desc(schema.invocations.date) so the query retrieves the most recent N invocations. If callers rely on ascending order for display, reverse the result array after the limit is applied.",
+  "primaryLocation": {
+    "file": "src/store/sqlite/repositories.ts",
+    "rationale": "This is the only method that fetches invocations for a revision with a LIMIT. It uses orderBy(asc(schema.invocations.date)) — oldest-first — so with LIMIT 25 it returns the 25 earliest rows. Once traffic exceeds 25 invocations, all recent feedback is invisible to evolve. The threshold-shaped symptom (breaks at ~30) matches exactly: the 25 oldest slots are occupied, new feedback is crowded out. Rolling back creates a fresh revision with zero invocations, resetting the window to recent-only until traffic accumulates again.",
+    "confidence": "high",
+    "function": "forRevision",
+    "lineRange": [
+      115,
+      125
+    ]
+  },
+  "candidateLocations": [
+    {
+      "file": "src/index.ts",
+      "rationale": "Controls telemetryWindow size (default 25 via opts.telemetryWindow ?? 25). Even after fixing sort order, a window too small for traffic volume could still dilute recency. Consider a larger or recency-weighted default.",
+      "confidence": "medium",
+      "function": "evolve",
+      "lineRange": [
+        191,
+        215
+      ]
+    },
+    {
+      "file": "src/store/sqlite/repositories.ts",
+      "rationale": "Per-invocation signal fetch uses orderBy(asc(signals.date)), correct within a single invocation. A symptom amplifier rather than root cause — irrelevant if the wrong invocations are selected upstream.",
+      "confidence": "low",
+      "function": "forInvocation",
+      "lineRange": [
+        165,
+        180
+      ]
+    },
+    {
+      "file": "src/store/sqlite/schema.ts",
+      "rationale": "If the date column uses a non-monotonic client-supplied timestamp rather than a server-generated default, sort order could be unreliable independently of ASC/DESC. Worth confirming.",
+      "confidence": "low",
+      "function": "invocations table definition",
+      "lineRange": [
+        1,
+        50
+      ]
+    },
+    {
+      "file": "ui/app/api/evolve/route.ts",
+      "rationale": "Could forward a stale revision ID, causing the wrong revision's invocations to be fetched. Less likely given rollback restores correct behavior.",
+      "confidence": "low",
+      "function": "POST handler",
+      "lineRange": [
+        1,
+        31
+      ]
+    }
+  ]
+}

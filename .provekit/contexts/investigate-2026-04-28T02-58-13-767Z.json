@@ -1,0 +1,27 @@
+{
+  "symptomSummary": "Evolve command stops incorporating recent thumbs-down feedback after a revision reaches ~30 invocations, instead generating changes based on stale feedback from weeks earlier.",
+  "rootCauseHypothesis": "The repository query fetching feedback for evolution likely has a LIMIT clause (around 30) without proper ORDER BY timestamp DESC, causing it to return the oldest 30 invocations instead of the most recent 30.",
+  "fixHypothesis": "Add or correct the ORDER BY clause in the feedback query to sort by timestamp descending before applying any LIMIT, ensuring recent feedback is prioritized over old feedback.",
+  "primaryLocation": {
+    "file": "src/store/sqlite/repositories.ts",
+    "rationale": "This file contains SQL query logic for the repository layer and was recently modified. The ~30 invocation threshold strongly suggests a LIMIT clause in a feedback-fetching query without proper time-based ordering. This is where feedback would be filtered and sorted before being passed to the evolution service.",
+    "confidence": "high"
+  },
+  "candidateLocations": [
+    {
+      "file": "reference/toolstac/core/prompt-evolution-service.ts",
+      "rationale": "Orchestrates the evolution process and calls the repository to fetch feedback. May contain logic that aggregates or weights feedback incorrectly, though less likely to have the threshold behavior than a SQL query.",
+      "confidence": "medium"
+    },
+    {
+      "file": "ui/app/api/evolve/route.ts",
+      "rationale": "The API endpoint for evolve operations. Small file (31 lines) so likely just routes to the evolution service, but could contain query parameters that affect feedback retrieval.",
+      "confidence": "low"
+    },
+    {
+      "file": "reference/toolstac/core/prompt-enhancer-agent.ts",
+      "rationale": "The agent that processes feedback to enhance prompts. Could contain flawed feedback weighting logic, though the threshold symptom points more to data retrieval than processing.",
+      "confidence": "low"
+    }
+  ]
+}

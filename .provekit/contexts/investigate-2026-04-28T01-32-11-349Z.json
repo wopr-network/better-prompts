@@ -1,0 +1,57 @@
+{
+  "symptomSummary": "After a prompt revision accumulates ~30+ invocations, the evolve loop generates regressions by addressing old failures instead of recently-flagged ones.",
+  "rootCauseHypothesis": "The repository layer fetches all historical invocations or signals for a revision without any recency constraint (no ORDER BY timestamp DESC + LIMIT, no time-decay weighting), so as total invocations grow the older, more numerous records statistically dominate the feedback sample passed to the evolution prompt.",
+  "fixHypothesis": "The query that retrieves invocations or negative signals for a given prompt revision should be windowed to the N most recent records (e.g. ORDER BY created_at DESC LIMIT 20) or supplemented with a recency weight, so the evolution prompt is constructed from recent signal rather than the full historical aggregate.",
+  "primaryLocation": {
+    "file": "src/store/sqlite/repositories.ts",
+    "rationale": "This file was changed in recent commits and is the data-access layer for invocations and signals. Threshold-shaped failures (works fine at low volume, breaks at scale) are a canonical symptom of a missing LIMIT/ORDER-BY in a query — as rows accumulate the unweighted aggregate shifts toward older data. The evolve pipeline must call into this layer to retrieve feedback; if the query returns all rows unsorted, recency is lost before it ever reaches the evolution logic.",
+    "confidence": "high",
+    "function": "getInvocations or getSignals (or equivalent fetch for a revision's feedback)",
+    "lineRange": [
+      1,
+      186
+    ]
+  },
+  "candidateLocations": [
+    {
+      "file": "reference/toolstac/core/prompt-evolution-service.ts",
+      "rationale": "This service orchestrates evolution and aggregates feedback records into the LLM prompt. Even if the repository returns all rows, a simple Array.join/map here without recency filtering equally causes old signals to dominate.",
+      "confidence": "high",
+      "function": "evolve or buildEvolutionPrompt",
+      "lineRange": [
+        1,
+        167
+      ]
+    },
+    {
+      "file": "src/index.ts",
+      "rationale": "The main public evolve entry-point may contain feedback-collection logic directly rather than fully delegating to the service layer.",
+      "confidence": "medium",
+      "function": "evolve",
+      "lineRange": [
+        1,
+        390
+      ]
+    },
+    {
+      "file": "ui/app/api/evolve/route.ts",
+      "rationale": "The API route may pass (or omit) a limit/since-timestamp parameter to the evolution service; if unbounded, this is the configuration site of the bug.",
+      "confidence": "low",
+      "function": "POST handler",
+      "lineRange": [
+        1,
+        31
+      ]
+    },
+    {
+      "file": "reference/toolstac/core/prompt-store.ts",
+      "rationale": "A second store abstraction between the SQLite repositories and evolution service that may impose its own unbounded fetch.",
+      "confidence": "low",
+      "function": "getRevisionFeedback or listInvocations",
+      "lineRange": [
+        1,
+        163
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "symptomSummary": "Prompt evolution initially improves based on feedback but degrades after ~30 invocations, addressing old problems instead of recent issues.",
+  "rootCauseHypothesis": "When fetching feedback for evolution, the system likely applies a limit (around 30) without properly sorting by recency or weighting recent feedback higher, causing old feedback to dominate the evolution context.",
+  "fixHypothesis": "Add recency-based sorting (ORDER BY timestamp DESC) to feedback queries and/or implement time-decay weighting so recent thumbs-down signals override older accumulated feedback.",
+  "primaryLocation": {
+    "file": "reference/toolstac/core/prompt-evolution-service.ts",
+    "rationale": "This service orchestrates prompt evolution and likely contains the logic for fetching and preparing feedback data. The threshold behavior (~30 invocations) suggests a query limit without proper recency sorting happening at this orchestration layer.",
+    "confidence": "high"
+  },
+  "candidateLocations": [
+    {
+      "file": "src/store/sqlite/repositories.ts",
+      "rationale": "Recently modified repository layer that likely contains the actual database queries for fetching invocation/feedback data. A LIMIT clause without ORDER BY timestamp DESC would cause exactly this symptom.",
+      "confidence": "high"
+    },
+    {
+      "file": "reference/toolstac/core/prompt-enhancer-agent.ts",
+      "rationale": "This agent likely constructs the evolution prompt from feedback. If feedback weighting or filtering happens here rather than at the query layer, recent signals might not be prioritized.",
+      "confidence": "medium"
+    },
+    {
+      "file": "ui/app/api/evolve/route.ts",
+      "rationale": "API endpoint that triggers evolution. May contain parameters or limits that affect which feedback is considered, though less likely to be the root cause.",
+      "confidence": "low"
+    }
+  ]
+}

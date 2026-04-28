@@ -1,0 +1,57 @@
+{
+  "symptomSummary": "After an artifact revision accumulates ~30+ invocations, the evolve command stops addressing recent thumbs-down feedback and instead regresses to fixing older issues, producing revisions worse than the current one.",
+  "rootCauseHypothesis": "The repository query that fetches invocations or feedback signals for the evolve step retrieves all historical records without recency ordering or applies a fixed LIMIT that surfaces oldest entries first, causing recent negative feedback to be diluted or entirely omitted once the total invocation count crosses the query's implicit horizon.",
+  "fixHypothesis": "The feedback-retrieval query in the SQLite repository layer should add ORDER BY invocation timestamp DESC with a bounded LIMIT (sliding window), and/or the evolve logic should apply recency weighting so that recent thumbs-down signals dominate the prompt passed to the evolution model.",
+  "primaryLocation": {
+    "file": "src/store/sqlite/repositories.ts",
+    "rationale": "Threshold-shaped failures (works at small scale, breaks past ~30 records) are the canonical fingerprint of an unordered or miscapped query. This is the only SQLite repository layer and almost certainly owns the query supplying invocation history and feedback signals to the evolve pipeline. An absent ORDER BY or wrong LIMIT silently returns oldest-first records, drowning recent negative feedback as the table grows.",
+    "confidence": "high",
+    "function": "getInvocations or getFeedback",
+    "lineRange": [
+      1,
+      186
+    ]
+  },
+  "candidateLocations": [
+    {
+      "file": "src/index.ts",
+      "rationale": "The top-level evolve command assembles the feedback context passed to the LLM. Even with a correct repository query, aggregation/sampling logic here could flatten the list without recency awareness.",
+      "confidence": "high",
+      "function": "evolve (command handler)",
+      "lineRange": [
+        1,
+        390
+      ]
+    },
+    {
+      "file": "reference/toolstac/core/prompt-evolution-service.ts",
+      "rationale": "A dedicated evolution service constructing the prompt is a natural home for feedback selection logic. If it fetches invocations internally without recency weighting, the same dilution occurs.",
+      "confidence": "medium",
+      "function": "evolve or buildEvolutionContext",
+      "lineRange": [
+        1,
+        167
+      ]
+    },
+    {
+      "file": "ui/app/api/evolve/route.ts",
+      "rationale": "The evolve API route may pass a hardcoded count or offset to the underlying service, inadvertently capping or skipping recent records.",
+      "confidence": "medium",
+      "function": "POST handler",
+      "lineRange": [
+        1,
+        31
+      ]
+    },
+    {
+      "file": "reference/toolstac/core/prompt-enhancer-agent.ts",
+      "rationale": "The largest core file, likely containing detailed signal-selection logic. A uniform-sampling or score-averaging strategy here would weight old positive feedback equally against recent negative feedback, masking regressions at scale.",
+      "confidence": "low",
+      "function": "enhance or selectFeedback",
+      "lineRange": [
+        1,
+        433
+      ]
+    }
+  ]
+}
