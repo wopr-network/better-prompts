@@ -14,3 +14,6 @@ tsconfig.tsbuildinfo
 # Verify-cache (step 6 of the standing-invariant runtime).
 # Build artifact: deletable, rebuilds on next run.
 .provekit/cache/
+# Local git worktrees for ProvekIt dogfood smokes (AC#3, etc.).
+# Keeps planted-bug experiments off main.
+.worktrees/
