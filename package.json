@@ -50,7 +50,8 @@
     "typecheck": "tsc --noEmit",
     "walkthrough": "tsx examples/walkthrough.ts",
     "walkthrough:fresh": "FRESH=1 tsx examples/walkthrough.ts",
-    "critique-and-evolve": "tsx examples/critique-and-evolve.ts"
+    "critique-and-evolve": "tsx examples/critique-and-evolve.ts",
+    "release": "pnpm build && changeset publish"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",
@@ -76,6 +77,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.119",
+    "@changesets/cli": "^2.31.0",
     "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^25.6.0",
     "ai": "^6.0.0",
