@@ -8,31 +8,38 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./store": {
       "types": "./dist/store/index.d.ts",
-      "import": "./dist/store/index.js"
+      "import": "./dist/store/index.js",
+      "default": "./dist/store/index.js"
     },
     "./store/sqlite": {
       "types": "./dist/store/sqlite/index.d.ts",
-      "import": "./dist/store/sqlite/index.js"
+      "import": "./dist/store/sqlite/index.js",
+      "default": "./dist/store/sqlite/index.js"
     },
     "./store/kv": {
       "types": "./dist/store/kv/index.d.ts",
-      "import": "./dist/store/kv/index.js"
+      "import": "./dist/store/kv/index.js",
+      "default": "./dist/store/kv/index.js"
     },
     "./agent-api": {
       "types": "./dist/agent-api.d.ts",
-      "import": "./dist/agent-api.js"
+      "import": "./dist/agent-api.js",
+      "default": "./dist/agent-api.js"
     },
     "./claude-agent": {
       "types": "./dist/claude-agent.d.ts",
-      "import": "./dist/claude-agent.js"
+      "import": "./dist/claude-agent.js",
+      "default": "./dist/claude-agent.js"
     },
     "./ai-sdk": {
       "types": "./dist/ai-sdk.d.ts",
-      "import": "./dist/ai-sdk.js"
+      "import": "./dist/ai-sdk.js",
+      "default": "./dist/ai-sdk.js"
     }
   },
   "files": [
