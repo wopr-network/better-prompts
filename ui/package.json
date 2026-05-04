@@ -10,9 +10,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/bedrock-sdk": "^0.29.0",
+    "@anthropic-ai/bedrock-sdk": "^0.29.1",
     "@anthropic-ai/claude-agent-sdk": "^0.2.119",
-    "@anthropic-ai/sdk": "^0.91.0",
+    "@anthropic-ai/sdk": "^0.92.0",
     "@anthropic-ai/vertex-sdk": "^0.16.0",
     "@codemirror/lang-markdown": "^6.5.0",
     "@codemirror/state": "^6.6.0",
